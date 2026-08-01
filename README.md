@@ -208,17 +208,32 @@ Design notes, explained in full inside the [`Dockerfile`](Dockerfile):
 
 ### Seeded baseline — ResNet-50 / DermaMNIST
 
-RTX 4050 (6 GB), 11 epochs, 13.7 min, early stopped at patience 5.
-Full record in [`EXPERIMENTS.md`](EXPERIMENTS.md);
-raw output in [`results/`](results/).
+Three runs, identical configuration, differing only by random seed.
+RTX 4050 (6 GB), ~14 min each. Full record in
+[`EXPERIMENTS.md`](EXPERIMENTS.md); raw output in [`results/`](results/).
 
-| Metric | Value |
-|---|---:|
-| Accuracy | 0.7332 |
-| Weighted-F1 | 0.7450 |
-| **Macro-F1** | **0.5224** |
-| Balanced accuracy | 0.6077 |
-| Macro AUC (OvR) | 0.9307 |
+| Metric | Mean of 3 seeds | SD | Range |
+|---|---:|---:|---:|
+| Accuracy | 0.7392 | 0.0060 | 0.0120 |
+| Weighted-F1 | 0.7533 | 0.0073 | 0.0138 |
+| **Macro-F1** | **0.5587** | **0.0360** | **0.0720** |
+| Balanced accuracy | 0.6304 | — | — |
+| Macro AUC (OvR) | 0.9334 | — | — |
+
+**Macro-F1 varies by 0.036 SD from the random seed alone** — five times noisier
+than weighted-F1 and six times noisier than accuracy, because it weights the
+23-image and 29-image classes equally with the 1,341-image one. Any single-run
+comparison on this benchmark needs a difference above roughly 0.07 macro-F1
+before it means anything. Most training techniques are worth 0.01–0.03, so
+single-run results on this dataset are not interpretable.
+
+Per-seed detail (seed 42 shown below for the per-class breakdown):
+
+| Seed | macro-F1 | weighted-F1 | Accuracy |
+|---|---:|---:|---:|
+| 42 | 0.5224 | 0.7450 | 0.7332 |
+| 1337 | 0.5944 | 0.7588 | 0.7451 |
+| 2024 | 0.5594 | 0.7561 | 0.7392 |
 
 | Class | Precision | Recall | F1 | Support |
 |---|---:|---:|---:|---:|
@@ -281,6 +296,11 @@ they cannot be reproduced or audited. The F1 column is **weighted** F1.
 
 Reading these honestly:
 
+- **The DermaMNIST student-vs-teacher gap is smaller than this benchmark's noise
+  floor.** The measured seed-only range on accuracy is **1.20 points** (see
+  above). The claimed student-beats-teacher margin is **0.65 points**. The effect
+  is roughly half the noise of the measurement, so these numbers cannot support
+  the claim either way.
 - **KD helped, but not uniformly.** Distilling from DenseNet-121 improved the
   student on all three datasets (+0.32, +0.64, +1.30 points). Distilling from
   ResNet-50 made it *worse* on two of three — PneumoniaMNIST 86.70 → 84.29 and
@@ -357,11 +377,18 @@ completed evaluation is never lost to a rendering error.
 
 ## Status
 
-The seeded baseline above is a **single run**. Seed-variance measurement (three
-runs, differing only by seed) has not yet been done, so there is no established
-noise floor and no improvement can yet be claimed over it. That is item E0 in
-[`EXPERIMENTS.md`](EXPERIMENTS.md) and is the prerequisite for everything in the
-improvement backlog.
+Seed variance (E0) is measured. Three post-hoc experiments have been run as
+paired comparisons against the same checkpoints:
+
+| Experiment | Δ macro-F1 | Verdict |
+|---|---:|---|
+| Test-time augmentation (flips) | **+0.0171** | kept — positive on all 3 seeds, p=0.119 |
+| Logit adjustment | −0.0028 | rejected — no effect, val selects tau≈0 |
+| Per-class decision weights | +0.0033 | rejected — gains +0.057 on val, nothing on test |
+
+The remaining backlog items require retraining and, given the 0.036 SD, need
+≥3 seeds each to be measurable. None have been run. Full write-ups, including
+both negative results, are in [`EXPERIMENTS.md`](EXPERIMENTS.md).
 
 ## Licence
 

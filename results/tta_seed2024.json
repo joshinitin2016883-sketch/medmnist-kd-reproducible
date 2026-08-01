@@ -1,0 +1,176 @@
+{
+  "run": {
+    "timestamp_utc": "2026-08-01T17:11:34+00:00",
+    "checkpoint": "C:\\Users\\Nitin\\Downloads\\Boimedical\\checkpoints\\baseline_resnet_derma_seed2024.pt",
+    "model_name": "resnet",
+    "dataset_flag": "dermamnist",
+    "medmnist_size": null,
+    "img_size": 224,
+    "batch_size": 64,
+    "device": "cuda",
+    "seed": 42,
+    "split": "test",
+    "tta": "flips",
+    "n_test_samples": 2005,
+    "inference_seconds": 27.893,
+    "torch_version": "2.13.0+cu126",
+    "python_version": "3.14.6",
+    "train_run_name": "baseline_resnet_derma_seed2024",
+    "train_seed": 2024
+  },
+  "overall": {
+    "accuracy": 0.7456359102244389,
+    "balanced_accuracy": 0.6689378741606583,
+    "macro_f1": 0.5705514137510134,
+    "weighted_f1": 0.7610983536287529
+  },
+  "per_class": [
+    {
+      "class_index": 0,
+      "class_name": "actinic keratoses and intraepithelial carcinoma",
+      "precision": 0.42696629213483145,
+      "recall": 0.5757575757575758,
+      "f1": 0.49032258064516127,
+      "support": 66
+    },
+    {
+      "class_index": 1,
+      "class_name": "basal cell carcinoma",
+      "precision": 0.5978260869565217,
+      "recall": 0.5339805825242718,
+      "f1": 0.5641025641025641,
+      "support": 103
+    },
+    {
+      "class_index": 2,
+      "class_name": "benign keratosis-like lesions",
+      "precision": 0.5492957746478874,
+      "recall": 0.5318181818181819,
+      "f1": 0.5404157043879908,
+      "support": 220
+    },
+    {
+      "class_index": 3,
+      "class_name": "dermatofibroma",
+      "precision": 0.2542372881355932,
+      "recall": 0.6521739130434783,
+      "f1": 0.36585365853658536,
+      "support": 23
+    },
+    {
+      "class_index": 4,
+      "class_name": "melanoma",
+      "precision": 0.44375,
+      "recall": 0.6367713004484304,
+      "f1": 0.5230202578268877,
+      "support": 223
+    },
+    {
+      "class_index": 5,
+      "class_name": "melanocytic nevi",
+      "precision": 0.9362244897959183,
+      "recall": 0.8210290827740492,
+      "f1": 0.8748510131108462,
+      "support": 1341
+    },
+    {
+      "class_index": 6,
+      "class_name": "vascular lesions",
+      "precision": 0.48214285714285715,
+      "recall": 0.9310344827586207,
+      "f1": 0.6352941176470588,
+      "support": 29
+    }
+  ],
+  "confusion_matrix": {
+    "labels": [
+      "actinic keratoses and intraepithelial carcinoma",
+      "basal cell carcinoma",
+      "benign keratosis-like lesions",
+      "dermatofibroma",
+      "melanoma",
+      "melanocytic nevi",
+      "vascular lesions"
+    ],
+    "counts": [
+      [
+        38,
+        7,
+        13,
+        4,
+        4,
+        0,
+        0
+      ],
+      [
+        8,
+        55,
+        10,
+        19,
+        5,
+        2,
+        4
+      ],
+      [
+        20,
+        8,
+        117,
+        4,
+        29,
+        41,
+        1
+      ],
+      [
+        2,
+        0,
+        1,
+        15,
+        2,
+        1,
+        2
+      ],
+      [
+        9,
+        7,
+        27,
+        4,
+        142,
+        29,
+        5
+      ],
+      [
+        12,
+        15,
+        45,
+        13,
+        138,
+        1101,
+        17
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        27
+      ]
+    ],
+    "png": "C:\\Users\\Nitin\\Downloads\\Boimedical\\results\\tta_seed2024_cm.png"
+  },
+  "warnings": [],
+  "auc": {
+    "per_class_ovr": {
+      "actinic keratoses and intraepithelial carcinoma": 0.9585462672105272,
+      "basal cell carcinoma": 0.9433861137484304,
+      "benign keratosis-like lesions": 0.9035090399796283,
+      "dermatofibroma": 0.9676874479006712,
+      "melanoma": 0.8763393778341462,
+      "melanocytic nevi": 0.9397253443303415,
+      "vascular lesions": 0.9743822420773418
+    },
+    "macro_ovr": 0.9376536904401551,
+    "weighted_ovr": 0.930331210211203
+  }
+}

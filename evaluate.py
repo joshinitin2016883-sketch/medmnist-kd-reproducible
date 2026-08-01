@@ -131,15 +131,39 @@ def load_split(dataset_flag, split, data_root, transform, medmnist_size=None):
 
 
 @torch.no_grad()
-def predict(model, loader, device):
-    """Run the test split once. Returns (probs [N,C], labels [N])."""
+def predict(model, loader, device, tta="none"):
+    """Run one pass over `loader`. Returns (probs [N,C], labels [N]).
+
+    tta="flips" averages softmax over the image, its horizontal flip, its
+    vertical flip, and both. Dermoscopy has no canonical orientation -- a lesion
+    rotated 180 degrees is the same lesion -- so these transforms are genuinely
+    label-preserving here. That is not true of every medical modality: flipping
+    a chest X-ray horizontally invents dextrocardia.
+
+    Averaging is done on probabilities rather than logits so each view
+    contributes on a common, normalised scale.
+    """
     model.eval()
     probs_chunks, label_chunks = [], []
 
     for images, labels in loader:
         images = images.to(device, non_blocking=True)
-        logits = model(images)
-        probs = torch.softmax(logits.float(), dim=1)
+
+        if tta == "flips":
+            views = [
+                images,
+                torch.flip(images, dims=[3]),      # horizontal
+                torch.flip(images, dims=[2]),      # vertical
+                torch.flip(images, dims=[2, 3]),   # both
+            ]
+        else:
+            views = [images]
+
+        acc = None
+        for view in views:
+            p = torch.softmax(model(view).float(), dim=1)
+            acc = p if acc is None else acc + p
+        probs = acc / len(views)
 
         probs_chunks.append(probs.cpu().numpy())
         # MedMNIST yields labels shaped (B, 1); flatten to (B,).
@@ -332,6 +356,15 @@ def parse_args(argv=None):
     )
     p.add_argument("--device", default=None, choices=["cuda", "cpu"])
     p.add_argument("--num-workers", type=int, default=0, help="0 is safest on Windows")
+    p.add_argument(
+        "--split", default="test", choices=["test", "val", "train"],
+        help="which official split to evaluate; use val to fit thresholds, "
+             "never test",
+    )
+    p.add_argument(
+        "--tta", default="none", choices=["none", "flips"],
+        help="test-time augmentation: average over h/v flips (4 views)",
+    )
     p.add_argument("--out", default="metrics.json")
     p.add_argument("--cm-png", default="confusion_matrix.png")
     p.add_argument(
@@ -397,13 +430,15 @@ def main(argv=None):
     print(f"checkpoint : {ckpt_path}")
     print(f"model      : {model_name}")
     print(f"dataset    : {dataset_flag}"
-          + (f" (native {medmnist_size}px)" if medmnist_size else ""))
+          + (f" (native {medmnist_size}px)" if medmnist_size else "")
+          + f"   split: {args.split}"
+          + (f"   TTA: {args.tta}" if args.tta != "none" else ""))
     print(f"input size : {img_size}")
     print(f"device     : {device}")
 
     transform = build_eval_transform(img_size)
     dataset, info = load_split(
-        dataset_flag, "test", args.data_root, transform, medmnist_size
+        dataset_flag, args.split, args.data_root, transform, medmnist_size
     )
 
     label_names = [info["label"][str(i)] for i in range(len(info["label"]))]
@@ -429,7 +464,7 @@ def main(argv=None):
     model.to(device)
 
     started = time.perf_counter()
-    probs, labels = predict(model, loader, device)
+    probs, labels = predict(model, loader, device, tta=args.tta)
     elapsed = time.perf_counter() - started
     preds = probs.argmax(axis=1)
 
@@ -477,7 +512,7 @@ def main(argv=None):
     try:
         save_confusion_png(
             cm, label_names, cm_png,
-            f"{model_name} / {dataset_flag} (test, n={len(labels)})",
+            f"{model_name} / {dataset_flag} ({args.split}, n={len(labels)})",
         )
         print(f"\nconfusion matrix PNG -> {cm_png}")
     except Exception as exc:
@@ -498,6 +533,8 @@ def main(argv=None):
             "batch_size": args.batch_size,
             "device": str(device),
             "seed": args.seed,
+            "split": args.split,
+            "tta": args.tta,
             "n_test_samples": int(len(labels)),
             "inference_seconds": round(elapsed, 3),
             "torch_version": torch.__version__,

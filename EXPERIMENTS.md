@@ -280,8 +280,193 @@ test accuracy lands at 0.7332 against the notebook's 0.7332 — despite a
 different, and in the notebook's case absent, seed. `train.py` is a faithful
 extraction.
 
-### Not yet run
+---
 
-E0 (seed variance) still needs `--seed 1337` and `--seed 2024`. Until those
-exist there is no noise floor, so no Phase 2 result can be called an
-improvement.
+## E0 — Seed variance (RUN)
+
+Three runs, identical configuration, differing only by seed.
+
+| Seed | macro-F1 | weighted-F1 | Accuracy | Balanced acc | macro AUC | Epochs |
+|---|---:|---:|---:|---:|---:|---:|
+| 42 | 0.5224 | 0.7450 | 0.7332 | 0.6077 | 0.9307 | 11 |
+| 1337 | **0.5944** | 0.7588 | 0.7451 | 0.6212 | 0.9355 | 20 |
+| 2024 | 0.5594 | 0.7561 | 0.7392 | 0.6624 | 0.9340 | 16 |
+
+| Metric | Mean | SD | Range |
+|---|---:|---:|---:|
+| **macro-F1** | 0.5587 | **0.0360** | **0.0720** |
+| weighted-F1 | 0.7533 | 0.0073 | 0.0138 |
+| accuracy | 0.7392 | 0.0060 | 0.0120 |
+
+### This is the most important result in the file
+
+**Macro-F1 has a standard deviation of 0.036 from seed alone** — five times
+noisier than weighted-F1 (0.0073) and six times noisier than accuracy (0.0060).
+The three runs span 0.5224 to 0.5944, a range of 0.072.
+
+Consequences, in order of how much they matter:
+
+**1. The original single-seed baseline was the worst of the three.** Seed 42's
+0.5224 sits 0.036 below the mean. Any Phase 2 change measured against it from a
+single run would inherit that bias.
+
+**2. Any unpaired single-run comparison needs a difference above ~0.07 to mean
+anything.** Most techniques in the backlog are worth 0.01–0.03. They are
+individually undetectable this way. Multi-seed runs, or paired comparisons, are
+mandatory — not a nicety.
+
+**3. The original README's KD claim is now measurably noise.** It reported the
+DermaMNIST student beating its teacher by **0.65 accuracy points**. The
+seed-only range on accuracy is **1.20 points**. The claimed effect is roughly
+half the noise floor of the measurement. This was previously an argument from
+sample size; it is now a measurement.
+
+**4. Small classes drive nearly all of it.** Per-class F1 range across seeds:
+
+| Class | n | s42 | s1337 | s2024 | range |
+|---|---:|---:|---:|---:|---:|
+| vasc | 29 | 0.4602 | 0.8070 | 0.6067 | **0.3468** |
+| df | 23 | 0.3684 | 0.5333 | 0.3614 | **0.1719** |
+| bkl | 220 | 0.4239 | 0.4916 | 0.5280 | 0.1041 |
+| akiec | 66 | 0.4192 | 0.4048 | 0.4774 | 0.0727 |
+| mel | 223 | 0.5421 | 0.4973 | 0.5179 | 0.0449 |
+| bcc | 103 | 0.5691 | 0.5439 | 0.5521 | 0.0252 |
+| nv | 1341 | 0.8736 | 0.8830 | 0.8726 | 0.0104 |
+
+`vasc` swings by 0.35 on 29 test images — a handful of images changing outcome.
+Macro-F1 weights that class equally with `nv`, so the metric we care about
+inherits the instability of the smallest classes. That is a property of the
+benchmark, not a fixable defect, and it is why the protocol below now requires
+paired comparisons wherever possible.
+
+### Protocol amendment
+
+Prefer **paired** experiments — same checkpoints, only the inference or
+decision procedure changed. Seed variance cancels, and effects an order of
+magnitude smaller than the unpaired noise floor become visible. Techniques
+requiring retraining must be run at ≥3 seeds and compared mean to mean.
+
+---
+
+## Phase 2 results
+
+### EXP-1 — Test-time augmentation (flips) — **KEPT**
+
+Paired: same three checkpoints, 4-view flip averaging at inference only.
+
+| Seed | baseline | +TTA | Δ |
+|---|---:|---:|---:|
+| 42 | 0.5224 | 0.5325 | +0.0101 |
+| 1337 | 0.5944 | 0.6245 | +0.0300 |
+| 2024 | 0.5594 | 0.5706 | +0.0111 |
+| **mean** | 0.5587 | **0.5759** | **+0.0171** |
+
+Positive on all three seeds. Paired *t*-test: t=2.64, **p=0.119**, 95% CI
+−0.011 to +0.045.
+
+**Verdict: kept, with the caveat stated.** The direction is consistent across
+every seed and the mechanism is sound — dermoscopy has no canonical
+orientation, so flips are label-preserving, and averaging four views reduces
+variance in the decision. But n=3 does not reach conventional significance, and
+the confidence interval includes zero. This is promising, not proven. Confirming
+it properly needs more seeds.
+
+Cost: 4× inference (~9s → ~37s on the full test split). No extra VRAM, no
+retraining, no change to training code.
+
+Per-class effect, averaged over seeds:
+
+| Class | n | baseline | +TTA | Δ |
+|---|---:|---:|---:|---:|
+| akiec | 66 | 0.4338 | 0.4869 | **+0.0531** |
+| bcc | 103 | 0.5550 | 0.5839 | +0.0289 |
+| vasc | 29 | 0.6246 | 0.6532 | +0.0285 |
+| bkl | 220 | 0.4812 | 0.5027 | +0.0215 |
+| nv | 1341 | 0.8764 | 0.8787 | +0.0023 |
+| mel | 223 | 0.5191 | 0.5149 | −0.0042 |
+| df | 23 | 0.4211 | 0.4105 | −0.0106 |
+
+The gain is concentrated in the rare classes, which is where macro-F1 has room.
+Note melanoma does **not** improve — the clinically important class is untouched
+by this change.
+
+### EXP-2 — Logit adjustment — **REJECTED**
+
+Subtract `tau · log(train prior)` from each log-probability; `tau` fitted on
+validation.
+
+| Seed | fitted tau | test Δ |
+|---|---:|---:|
+| 42 | 0.050 | −0.0070 |
+| 1337 | 0.000 | +0.0000 |
+| 2024 | 0.025 | −0.0014 |
+| **mean** | | **−0.0028** |
+
+**Verdict: rejected. No effect.** Validation selected `tau` at or near zero on
+every seed — that is, the search found the *unadjusted* rule was already best on
+validation. The prior correction I expected to help does not, and the honest
+reading is that the baseline's class-weighted focal loss has already absorbed
+most of the prior correction during training. Applying it again at decision time
+double-counts.
+
+This was ranked #2 in the backlog on the strength of the macro-AUC 0.93 vs
+macro-F1 0.52 gap. That gap is real, but logit adjustment is not the way to
+close it. A negative result, logged.
+
+### EXP-3 — Per-class decision weights — **REJECTED (overfits validation)**
+
+Seven multiplicative weights, fitted by coordinate ascent on validation.
+
+| Seed | val Δ | test Δ |
+|---|---:|---:|
+| 42 | +0.0647 | +0.0204 |
+| 1337 | +0.0500 | −0.0339 |
+| 2024 | +0.0553 | +0.0234 |
+| **mean** | **+0.0566** | **+0.0033** |
+
+Paired *t*-test on test deltas: t=0.18, **p=0.876**.
+
+**Verdict: rejected.** This is the cleanest demonstration of overfitting in the
+project. The rule gains **+0.057 macro-F1 on validation, every single time**,
+and delivers **+0.003 on test** — nothing. Seven free parameters fitted against
+1,003 validation images, where four classes have fewer than 60 examples, is
+enough capacity to memorise validation noise.
+
+Run against EXP-2's single parameter, which gained nothing anywhere, the pair
+makes the point precisely: the 7-parameter rule did not fail because tuning
+thresholds is wrong, it failed because it fitted noise. Anyone reporting the
+validation number here would be reporting a +0.057 improvement that does not
+exist.
+
+---
+
+## Still not run
+
+The remaining backlog items all require retraining, and per the protocol
+amendment each needs ≥3 seeds to be measurable against a 0.036 SD — roughly
+45 minutes per experiment.
+
+| # | Change | Status |
+|---|---|---|
+| 1 | Native 224px source data | not run — highest expected gain |
+| 4 | Cosine LR schedule | not run |
+| 5 | Untangle focal / weights / smoothing | not run |
+| 6 | Discriminative LR + progressive unfreeze | not run |
+| 7 | Class-weight power sweep | not run |
+| 8 | Checkpoint ensembling / SWA | not run |
+| 9 | Stronger augmentation | not run |
+| 10–12 | Mixup, CutMix, balanced sampler | not run |
+
+### New item, added from E0 evidence
+
+**Early-stop on validation macro-F1 rather than validation loss.** Observed
+independently on all three seeds: the epoch with the best val macro-F1 was
+rejected in favour of the epoch with the best val loss.
+
+| Seed | best-loss epoch (kept) | best-macro-F1 epoch (discarded) | val macro-F1 given up |
+|---|---|---|---:|
+| 42 | 6 (0.5569) | 7 (0.5767) | −0.0198 |
+| 1337 | 13 (0.5829) | 9 (0.6021) | −0.0192 |
+
+Selecting on val loss optimises a quantity dominated by `nv`, which is not the
+target metric. Cheap to test: it changes only the early-stopping criterion.
