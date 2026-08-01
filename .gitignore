@@ -1,0 +1,40 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- Virtual environments ---
+# ~2.5 GB with the CUDA torch wheel. Never commit this.
+.venv/
+venv/
+env/
+
+# --- MedMNIST downloads ---
+# Fetched automatically by medmnist on first run; regenerable, so not in git.
+data/
+*.npz
+# ...but saved test-set probabilities ARE committed. They are ~50 KB and let
+# anyone redo threshold tuning, TTA and ensembling without retraining.
+!results/*.npz
+
+# --- Training artifacts ---
+# Weights are large and reproducible from train.py + a seed.
+checkpoints/
+*.pt
+*.pth
+
+# --- Evaluation outputs ---
+# metrics.json and the confusion matrix ARE committed per experiment, under
+# results/, so EXPERIMENTS.md can point at real numbers. These patterns only
+# ignore the loose top-level files produced by a default `python evaluate.py`.
+/metrics.json
+/confusion_matrix.png
+/history.json
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.claude/
+Thumbs.db
+desktop.ini
