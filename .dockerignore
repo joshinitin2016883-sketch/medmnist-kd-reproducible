@@ -1,0 +1,34 @@
+# Everything here is excluded from the build context -- the tarball Docker
+# sends to the daemon before the first instruction runs. Without this file the
+# context is several GB (.venv alone is ~2.6 GB) and every build pays to upload
+# it, even though none of it is COPYed.
+
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# MedMNIST downloads and trained weights: large and not needed at build time.
+# The model is mounted at runtime instead -- see the Dockerfile.
+data/
+checkpoints/
+*.pt
+*.pth
+*.npz
+
+.git/
+.gitignore
+.claude/
+.vscode/
+.idea/
+
+# The notebook is 2 MB of embedded plot output and is not used for serving.
+*.ipynb
+
+# Docs. Excluded so editing them does not invalidate the COPY layer and force
+# a rebuild of everything downstream.
+*.md
+!README.md
+
+results/

@@ -1,4 +1,9 @@
-# Pinned for Python 3.14 on Windows (win_amd64 / cp314).
+# Training and evaluation dependencies. Pinned for Python 3.14 on Windows
+# (win_amd64 / cp314).
+#
+# For the serving API only (app.py / Docker), use requirements-serve.txt --
+# it is a much smaller set and pulls the CPU build of torch.
+# To run app.py locally for development, install both.
 #
 # IMPORTANT -- torch and torchvision are NOT installed from PyPI here.
 # PyPI serves CPU-only builds. For GPU training you must install the +cu126

@@ -137,6 +137,73 @@ with a placeholder or a `NaN`.
 
 ---
 
+## Serving API
+
+`app.py` exposes the trained model over HTTP, with Grad-CAM explanations.
+
+```powershell
+$env:MODEL_PATH = "checkpoints\baseline_resnet_derma_seed42.pt"
+python -m flask --app app run --port 8000
+```
+
+| Method | Endpoint | Returns |
+|---|---|---|
+| `GET` | `/health` | model/device status, 503 if no model loaded |
+| `GET` | `/classes` | class index → label mapping |
+| `POST` | `/predict` | class probabilities for an uploaded image |
+| `POST` | `/explain` | Grad-CAM overlay as PNG (`?class_index=N` to target a class) |
+
+```powershell
+curl.exe -F "image=@lesion.png" http://localhost:8000/predict
+curl.exe -F "image=@lesion.png" http://localhost:8000/explain -o cam.png
+```
+
+Every JSON response carries a `disclaimer` field, and `/predict` reports
+`"calibrated": false` — softmax outputs are not calibrated probabilities and
+must not be read as confidence. See [`MODEL_CARD.md`](MODEL_CARD.md).
+
+The API reuses `build_model` and `build_eval_transform` from `evaluate.py`
+rather than redefining them. Serving preprocessing that drifts from evaluation
+preprocessing is the classic train/serve skew bug; there is one definition.
+
+The Grad-CAM implementation is a rewrite rather than a copy of the notebook's,
+which had three defects: it used the deprecated `register_backward_hook`,
+registered hooks on every call without ever removing them (so repeated calls
+stacked hooks on the same model), and divided by zero when the activation map
+was entirely non-positive. The version here scopes hooks to a `with` block and
+guards the normalisation.
+
+## Docker
+
+```powershell
+docker build -t medmnist-kd-api .
+
+docker run --rm -p 8000:8000 `
+    -v "${PWD}\checkpoints:/models:ro" `
+    -e MODEL_PATH=/models/baseline_resnet_derma_seed42.pt `
+    medmnist-kd-api
+```
+
+Design notes, explained in full inside the [`Dockerfile`](Dockerfile):
+
+- **Multi-stage.** Dependencies install into a virtualenv in a builder stage;
+  only that virtualenv reaches the final image. pip's cache and build scratch
+  never ship.
+- **Base image pinned by digest**, not just tag — the same tag resolves to
+  different bytes over time, so a tag-pinned build is not reproducible.
+- **`requirements-serve.txt` copied before the source.** Docker caches layers in
+  order and invalidates everything below a change. The ~200 MB torch install
+  depends only on the dependency manifest, so editing `app.py` rebuilds one
+  cheap layer instead of reinstalling torch.
+- **CPU torch** (~200 MB vs ~2.6 GB for CUDA) and a serving-only dependency set
+  that omits scikit-learn, pandas, matplotlib and seaborn — roughly 400 MB less.
+- **Non-root user**, `HEALTHCHECK` against `/health`, and gunicorn with
+  `--preload` so forked workers share one copy-on-write copy of the model.
+- **The model is mounted, not baked in**, so image version and model version
+  stay independent and a retrain does not require a rebuild.
+
+---
+
 ## Results
 
 ### Seeded baseline — ResNet-50 / DermaMNIST
@@ -273,7 +340,11 @@ completed evaluation is never lost to a rendering error.
 ├── biomed_kd_final.ipynb    original experiments (Akash Samanta)
 ├── train.py                 notebook recipe, seeded and checkpointed
 ├── evaluate.py              test metrics -> metrics.json + confusion PNG
-├── requirements.txt         pinned deps, incl. CUDA wheel matrix
+├── app.py                   Flask API: /predict, /explain (Grad-CAM)
+├── Dockerfile               multi-stage container for the API
+├── .dockerignore            keeps the build context small
+├── requirements.txt         training/eval deps, incl. CUDA wheel matrix
+├── requirements-serve.txt   serving-only deps (CPU torch, much smaller)
 ├── EXPERIMENTS.md           protocol, ranked backlog, results log
 ├── MODEL_CARD.md            intended use, caveats, limitations
 ├── results/                 metrics.json, confusion matrices, probabilities
