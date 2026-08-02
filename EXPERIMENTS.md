@@ -438,6 +438,83 @@ thresholds is wrong, it failed because it fitted noise. Anyone reporting the
 validation number here would be reporting a +0.057 improvement that does not
 exist.
 
+### EXP-4 — Native 224px source data — **LARGEST EFFECT MEASURED**
+
+`--medmnist-size 224`. MedMNIST+ ships DermaMNIST at native 224×224 (1,041 MB)
+instead of the default 28×28 (18.8 MB) upsampled 8× at load time. Same official
+splits (7007/1003/2005), same architecture, same recipe, three seeds.
+
+| Seed | macro-F1 | weighted-F1 | Accuracy | Balanced acc | macro AUC |
+|---|---:|---:|---:|---:|---:|
+| 42 | 0.7809 | 0.8794 | 0.8823 | 0.7761 | 0.9796 |
+| 1337 | **0.7933** | 0.8610 | 0.8544 | 0.8386 | 0.9788 |
+| 2024 | 0.7455 | 0.8462 | 0.8399 | 0.7924 | 0.9730 |
+
+| Metric | 28px (mean±sd) | 224px (mean±sd) | Δ |
+|---|---:|---:|---:|
+| **macro-F1** | 0.5587 ± 0.0360 | **0.7733 ± 0.0248** | **+0.2145** |
+| weighted-F1 | 0.7533 ± 0.0073 | 0.8622 ± 0.0166 | +0.1089 |
+| accuracy | 0.7392 ± 0.0060 | 0.8589 ± 0.0216 | +0.1197 |
+
+**+0.2145 macro-F1 — roughly six times the 0.036 seed-noise SD.** This is not a
+result that needs careful statistics. It is larger than every other effect in
+this file combined, by an order of magnitude.
+
+Cost: mean training time 15.7 min → 19.5 min (+24%), and a 1 GB download.
+**VRAM is unchanged** — tensors were already 224×224 in both conditions, so GPU
+compute is identical. The only extra cost is data loading. Fits the same 6 GB
+card at the same batch size.
+
+#### Per-class F1, mean of 3 seeds
+
+| Class | n | 28px | 224px | Δ |
+|---|---:|---:|---:|---:|
+| bkl | 220 | 0.4812 | 0.7572 | **+0.2760** |
+| akiec | 66 | 0.4338 | 0.7082 | **+0.2744** |
+| df | 23 | 0.4211 | 0.6904 | **+0.2693** |
+| vasc | 29 | 0.6246 | 0.8813 | **+0.2567** |
+| bcc | 103 | 0.5550 | 0.7838 | +0.2288 |
+| **mel** | 223 | 0.5191 | 0.6632 | **+0.1441** |
+| nv | 1341 | 0.8764 | 0.9286 | +0.0523 |
+
+Every class improves. The gains concentrate exactly where the resolution
+hypothesis predicts: `nv`, the easy majority class distinguishable by gross
+colour and shape, gains least (+0.05); the classes requiring fine dermoscopic
+structure gain four to five times as much.
+
+#### The caveat that matters clinically
+
+**Melanoma benefits least of all the lesion classes** (+0.144 against +0.23 to
++0.28 for the others), and its recall is the least stable across seeds:
+
+| Seed | 28px mel recall | 224px mel recall |
+|---|---:|---:|
+| 42 | 0.6637 | **0.6233** (worse) |
+| 1337 | 0.6099 | 0.8161 |
+| 2024 | 0.6502 | 0.7175 |
+
+Mean recall rises 0.641 → 0.719, but one seed got *worse*, and the spread
+(0.62–0.82) is far wider than the other classes'. Resolution does not solve
+melanoma. Melanoma-vs-nevus is the genuinely hard discrimination in this task,
+and it remains the weakest link at any resolution.
+
+#### What this means for the rest of the project
+
+This reframes every prior result in this repository and in the original
+notebook. All of the loss engineering, class weighting, focal loss and knowledge
+distillation was optimising within an artificial constraint that costs **0.21
+macro-F1** — larger than any of those techniques could plausibly recover.
+
+Concretely: the original README compared teacher and student models at
+differences of **0.6 accuracy points**, on data whose resolution ceiling costs
+**12 accuracy points and 21 macro-F1 points**. Those comparisons were measuring
+sub-noise differences inside a badly handicapped setting.
+
+**Verdict: adopt 224px as the default benchmark for all further work.** The
+28px results remain in this file as the historical baseline and as the
+measurement of what the ceiling cost. They are a *different benchmark*, not a
+worse run of the same one, and the two must never be merged into one table.
+
 ---
 
 ## Still not run

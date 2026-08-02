@@ -247,7 +247,49 @@ Per-seed detail (seed 42 shown below for the per-class breakdown):
 
 ![Confusion matrix](results/baseline_resnet_derma_seed42_cm.png)
 
-### What the baseline shows
+### Native 224px — the single largest effect measured
+
+MedMNIST+ ships DermaMNIST at native 224x224 instead of the default 28x28.
+Same splits, same architecture, same recipe, three seeds:
+
+| Metric | 28px (mean±sd) | **224px native** | Δ |
+|---|---:|---:|---:|
+| **Macro-F1** | 0.5587 ± 0.0360 | **0.7733 ± 0.0248** | **+0.2145** |
+| Weighted-F1 | 0.7533 ± 0.0073 | 0.8622 ± 0.0166 | +0.1089 |
+| Accuracy | 0.7392 ± 0.0060 | 0.8589 ± 0.0216 | +0.1197 |
+| Macro AUC | 0.9334 | 0.9771 | +0.0437 |
+
+**+0.21 macro-F1 — about six times the seed-noise SD.** Cost: +24% training
+time (15.7 → 19.5 min) and a 1 GB download. **VRAM is unchanged**, because the
+tensors fed to the network were already 224x224 in both cases; the 28px pipeline
+was simply upsampling 784 pixels into 50,176.
+
+Per-class, the gain lands exactly where the resolution hypothesis predicts:
+
+| Class | n | 28px | 224px | Δ |
+|---|---:|---:|---:|---:|
+| bkl | 220 | 0.4812 | 0.7572 | +0.2760 |
+| akiec | 66 | 0.4338 | 0.7082 | +0.2744 |
+| df | 23 | 0.4211 | 0.6904 | +0.2693 |
+| vasc | 29 | 0.6246 | 0.8813 | +0.2567 |
+| bcc | 103 | 0.5550 | 0.7838 | +0.2288 |
+| **mel** | 223 | 0.5191 | 0.6632 | +0.1441 |
+| nv | 1341 | 0.8764 | 0.9286 | +0.0523 |
+
+`nv` — the easy majority class, separable by gross colour and shape — gains
+least. The classes needing fine dermoscopic structure gain four to five times as
+much.
+
+**Melanoma is the exception worth stating plainly.** It gains least of the
+lesion classes (+0.144), and its recall is the least stable across seeds
+(0.62 / 0.82 / 0.72 at 224px, versus 0.66 / 0.61 / 0.65 at 28px) — one seed got
+*worse*. Resolution does not solve melanoma-vs-nevus, which is the genuinely
+hard discrimination here and remains the weakest link at any resolution.
+
+These are **two different benchmarks**, not a better run of one. They are kept
+in separate tables throughout and never merged.
+
+### What the 28px baseline shows
 
 **Accuracy 0.7332 matches the original notebook's 0.7332**, despite using a
 different seed where the notebook used none. That agreement is the evidence that
@@ -382,13 +424,19 @@ paired comparisons against the same checkpoints:
 
 | Experiment | Δ macro-F1 | Verdict |
 |---|---:|---|
-| Test-time augmentation (flips) | **+0.0171** | kept — positive on all 3 seeds, p=0.119 |
+| **Native 224px source data** | **+0.2145** | **adopted** — ~6× the noise floor |
+| Test-time augmentation (flips) | +0.0171 | kept — positive on all 3 seeds, p=0.119 |
 | Logit adjustment | −0.0028 | rejected — no effect, val selects tau≈0 |
 | Per-class decision weights | +0.0033 | rejected — gains +0.057 on val, nothing on test |
 
-The remaining backlog items require retraining and, given the 0.036 SD, need
-≥3 seeds each to be measurable. None have been run. Full write-ups, including
-both negative results, are in [`EXPERIMENTS.md`](EXPERIMENTS.md).
+The headline finding is that **input resolution dominates everything else by an
+order of magnitude**. All the loss engineering, class weighting and distillation
+in the original work was being tuned inside an artificial 28x28 constraint worth
+0.21 macro-F1 — more than any of those techniques could plausibly recover.
+
+Remaining backlog items require retraining and, given the seed noise, ≥3 seeds
+each to be measurable. None have been run. Full write-ups, including both
+negative results, are in [`EXPERIMENTS.md`](EXPERIMENTS.md).
 
 ## Licence
 
