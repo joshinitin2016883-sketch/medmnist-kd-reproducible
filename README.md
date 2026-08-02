@@ -425,9 +425,23 @@ paired comparisons against the same checkpoints:
 | Experiment | Δ macro-F1 | Verdict |
 |---|---:|---|
 | **Native 224px source data** | **+0.2145** | **adopted** — ~6× the noise floor |
-| Test-time augmentation (flips) | +0.0171 | kept — positive on all 3 seeds, p=0.119 |
-| Logit adjustment | −0.0028 | rejected — no effect, val selects tau≈0 |
-| Per-class decision weights | +0.0033 | rejected — gains +0.057 on val, nothing on test |
+| Test-time augmentation (flips) | +0.0174 | **kept** — positive on all 3 seeds at both resolutions |
+| Logit adjustment | +0.0012 | rejected — no effect, val selects tau≈0 |
+| Per-class decision weights | −0.0105 | rejected — +0.045 on val, negative on test |
+
+### Best configuration measured
+
+| Configuration | macro-F1 (mean ± sd, 3 seeds) |
+|---|---:|
+| 28px, argmax (original recipe) | 0.5587 ± 0.0360 |
+| 224px, argmax | 0.7733 ± 0.0248 |
+| **224px + TTA** | **0.7906 ± 0.0314** |
+
+**Total: +0.2319 macro-F1 over the original recipe** — of which +0.2145 (92%)
+is input resolution and +0.0174 (8%) is test-time augmentation. Neither
+required changing the model, the loss, the optimiser or the schedule. Both
+*rejected* experiments were decision-rule changes, which makes the same point
+from the other side: the decision rule was never the bottleneck.
 
 The headline finding is that **input resolution dominates everything else by an
 order of magnitude**. All the loss engineering, class weighting and distillation

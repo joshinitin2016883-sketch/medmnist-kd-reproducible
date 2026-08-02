@@ -515,6 +515,75 @@ sub-noise differences inside a badly handicapped setting.
 measurement of what the ceiling cost. They are a *different benchmark*, not a
 worse run of the same one, and the two must never be merged into one table.
 
+### EXP-5 — TTA re-tested at 224px — **KEPT, and orthogonal to resolution**
+
+Whether TTA still helps once the resolution ceiling is removed was an open
+question. Re-run as a paired comparison on the 224px checkpoints:
+
+| Seed | 224px argmax | 224px + TTA | Δ |
+|---|---:|---:|---:|
+| 42 | 0.7809 | 0.8081 | +0.0271 |
+| 1337 | 0.7933 | 0.8094 | +0.0161 |
+| 2024 | 0.7455 | 0.7544 | +0.0089 |
+| **mean** | 0.7733 | **0.7906** | **+0.0174** |
+
+Paired *t*=3.29, **p=0.081**, positive on all three seeds.
+
+| | 28px | 224px |
+|---|---:|---:|
+| TTA Δ macro-F1 | +0.0171 | +0.0174 |
+| p | 0.119 | 0.081 |
+
+**The effect is essentially identical at both resolutions** (+0.0171 vs
++0.0174). TTA and native resolution are addressing different things and their
+gains stack: TTA reduces variance in the decision by averaging label-preserving
+views, which is unrelated to how much information the input carries. The
+evidence is marginally stronger at 224px only because the seed-to-seed spread of
+the effect is tighter (sd 0.0092 vs 0.0112).
+
+Per-class at 224px, the gain now concentrates on `df` (+0.049, n=23) — the class
+with the least data — while `nv` barely moves (+0.004). Consistent with a
+variance-reduction mechanism: averaging helps most where single-view predictions
+are least stable.
+
+### EXP-6 — Threshold tuning re-tested at 224px — **REJECTED AGAIN, more clearly**
+
+| Rule | seed 42 | seed 1337 | seed 2024 | mean |
+|---|---:|---:|---:|---:|
+| logit adjustment (test Δ) | +0.0036 | +0.0000 | +0.0000 | **+0.0012** |
+| per-class weights (val Δ) | +0.0477 | +0.0495 | +0.0380 | **+0.0451** |
+| per-class weights (test Δ) | −0.0071 | −0.0227 | −0.0017 | **−0.0105** |
+
+Logit adjustment again selects `tau ≈ 0` on two of three seeds — the unadjusted
+rule is already optimal on validation. Confirmed null.
+
+Per-class weights are now **negative on all three seeds** while still gaining
++0.045 on validation every time. At 28px the test effect was noise around zero
+(+0.003); at 224px it is consistently harmful. The validation gain is entirely
+fitted noise, and the conclusion is firmer than before: seven free parameters
+against 1,003 validation images, with four classes under 60 examples, cannot be
+fitted reliably. Rejected at both resolutions.
+
+---
+
+## Best configuration measured
+
+| Configuration | macro-F1 (mean ± sd, 3 seeds) |
+|---|---:|
+| 28px, argmax (original recipe) | 0.5587 ± 0.0360 |
+| 224px, argmax | 0.7733 ± 0.0248 |
+| **224px + TTA** | **0.7906 ± 0.0314** |
+
+**Total improvement over the original recipe: +0.2319 macro-F1.**
+
+Of that, **+0.2145 (92%) comes from input resolution** and +0.0174 (8%) from
+test-time augmentation. Neither required any change to the model, the loss, the
+optimiser, or the training schedule — the two levers that worked were the data
+the model sees and how its predictions are aggregated at inference.
+
+Both rejected experiments were decision-rule changes, which reinforces the same
+point from the other direction: the decision rule was not the bottleneck.
+
 ---
 
 ## Still not run
